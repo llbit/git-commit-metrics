@@ -1,4 +1,4 @@
-# Git LineCount
+# Git Commit Metrics
 
 A tool for counting cumulative changes per author for Git repositories.
 Can output text, CSV, or LaTeX.
