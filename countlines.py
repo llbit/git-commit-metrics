@@ -13,7 +13,8 @@ class Author:
         self.deleted = 0
 
     def report(s, by, sep, suffix=''):
-        metrics = [str(s.commits), str(s.added), str(s.deleted), str(s.added + s.deleted)]
+        metrics = list(map(lambda x: format(x, ','),
+                [s.commits, s.added, s.deleted, s.added + s.deleted]))
         if by == 'name':
             return sep.join([s.name] + metrics) + suffix
         elif by == 'email':
@@ -44,7 +45,7 @@ def main():
             default='both',
             help='Collate by author name, email, or both')
     parser.add_argument('--output', dest='output',
-            choices=['plaintext', 'tex', 'csv', 'alias'],
+            choices=['plaintext', 'tex', 'tex-table', 'csv', 'alias'],
             default='plaintext',
             help='Output as TeX document')
     parser.add_argument('--alias', help='File mapping emails to author names')
@@ -52,7 +53,7 @@ def main():
     repo = args.repository
     if not os.path.isdir(repo):
         # Check out the repo to local directory.
-        print('Cloning %s into ./repo' % repo)
+        sys.stderr.write('Cloning %s into ./repo\n' % repo)
         if not os.path.isdir('repo'):
             exit_code = subprocess.call(['git', 'clone', repo, 'repo'])
             if exit_code != 0:
@@ -98,20 +99,22 @@ def main():
         print('Author Commits Inserted Removed Total')
         for auth in authors:
             print(auth.report(args.by, sep=' '))
-    elif args.output == 'tex':
-        print('''\documentclass[10pt,border=10pt]{standalone}
+    elif args.output.startswith('tex'):
+        if args.output == 'tex':
+            print('''\documentclass[10pt,border=10pt]{standalone}
 \\usepackage{booktabs}
 \\usepackage{newtxtext}
-\\begin{document}
-\\begin{tabular}{lrrrr}
+\\begin{document}''')
+        print('''\\begin{tabular}{lrrrr}
 \\toprule
-\\emph{Author} & \\emph{Commits} & \\emph{Inserted} & \\emph{Removed} & $\Sigma$ \\\\
+\\emph{Author} & \\emph{Commits} & \\emph{Inserted} & \\emph{Removed} & $\Sigma\,\downarrow$ \\\\
 \\midrule''')
         for auth in authors:
             print(auth.report(args.by, sep=' & ', suffix = ' \\\\'))
         print('''\\bottomrule
-\\end{tabular}
-\\end{document}''')
+\\end{tabular}''')
+        if args.output == 'tex':
+            print('\\end{document}')
     elif args.output == 'csv':
         for auth in authors:
             print(auth.report(args.by, sep=','))
