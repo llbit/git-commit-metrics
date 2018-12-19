@@ -12,6 +12,10 @@ estimate line counts (good luck with that, lol).
 1. `python countlines.py <path-to-repo> --by=name --output=tex > stats.tex`
 2. `xelatex stats.tex`
 
+Note: `<path-to-repo>` can be a directory on the filesystem with a checked-out repository,
+or it can be a git repository url. In the latter case, the code will be cloned to the local `repo`
+directory (unless the directory already exists).
+
 ## Usage with Alias File
 
 An alias file can be used to map email addresses to names. This is handy when
