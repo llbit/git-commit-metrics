@@ -12,9 +12,13 @@ class Author:
         self.added = 0
         self.deleted = 0
 
-    def report(s, by, sep, suffix=''):
+    def edits(s):
+        return s.added + s.deleted
+
+    def report(s, by, totlines, sep, suffix=''):
         metrics = list(map(lambda x: format(x, ','),
-                [s.commits, s.added, s.deleted, s.added + s.deleted]))
+                [s.commits, s.added, s.deleted, s.edits()]))
+        metrics += ["%.1f" % ((100.0 * s.edits())/totlines)]
         if by == 'name':
             return sep.join([s.name] + metrics) + suffix
         elif by == 'email':
@@ -44,10 +48,12 @@ def main():
             choices=['name', 'email', 'both'],
             default='both',
             help='Collate by author name, email, or both')
-    parser.add_argument('--output', dest='output',
+    parser.add_argument('--output',
             choices=['plaintext', 'tex', 'tex-table', 'csv', 'alias'],
             default='plaintext',
             help='Output as TeX document')
+    parser.add_argument('--limit',
+            help='Maximum number of output rows')
     parser.add_argument('--alias', help='File mapping emails to author names')
     args = parser.parse_args()
     repo = args.repository
@@ -94,30 +100,33 @@ def main():
                 auth.added += int(edits.group(1))
                 auth.deleted += int(edits.group(2))
     sys.stderr.write('\r%s\r' % (' ' * 25))
-    authors = sorted(authors.values(), key=lambda x: x.added + x.deleted, reverse=True)
+    totlines = sum(map(lambda x: x.edits(), authors.values()))
+    authors = sorted(authors.values(), key=lambda x: x.edits(), reverse=True)
+    if args.limit != None:
+        authors = authors[:int(args.limit)]
     if args.output == 'plaintext':
-        print('Author Commits Inserted Removed Total')
+        print('Author\tCommits\tInserted\tRemoved\tTotal\tPercent')
         for auth in authors:
-            print(auth.report(args.by, sep=' '))
+            print(auth.report(args.by, totlines, sep='\t'))
     elif args.output.startswith('tex'):
         if args.output == 'tex':
-            print('''\documentclass[10pt,border=10pt]{standalone}
+            print('''\\documentclass[10pt,border=10pt]{standalone}
 \\usepackage{booktabs}
 \\usepackage{newtxtext}
 \\begin{document}''')
-        print('''\\begin{tabular}{lrrrr}
+        print('''\\begin{tabular}{lrrrrr}
 \\toprule
-\\emph{Author} & \\emph{Commits} & \\emph{Inserted} & \\emph{Removed} & $\Sigma\,\downarrow$ \\\\
+\\emph{Author} & \\emph{Commits} & \\emph{Inserted} & \\emph{Removed} & $\\Sigma\,\\downarrow$ & \\% \\\\
 \\midrule''')
         for auth in authors:
-            print(auth.report(args.by, sep=' & ', suffix = ' \\\\'))
+            print(auth.report(args.by, totlines, sep=' & ', suffix = ' \\\\'))
         print('''\\bottomrule
 \\end{tabular}''')
         if args.output == 'tex':
             print('\\end{document}')
     elif args.output == 'csv':
         for auth in authors:
-            print(auth.report(args.by, sep=','))
+            print(auth.report(args.by, totlines, sep=','))
     elif args.output == 'alias':
         for auth in authors:
             print('%s = %s' % (auth.email, auth.name))
