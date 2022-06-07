@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Copyright (c) 2018, Jesper Öqvist
 import argparse
 import sys, os, subprocess
 import re
@@ -55,7 +54,10 @@ def main():
     parser.add_argument('--limit',
             help='Maximum number of output rows')
     parser.add_argument('--alias', help='File mapping emails to author names')
+    parser.add_argument('--since', help='since')
+    parser.add_argument('--until', help='until')
     args = parser.parse_args()
+
     repo = args.repository
     if not os.path.isdir(repo):
         # Check out the repo to local directory.
@@ -76,7 +78,10 @@ def main():
 
     # Process commits.
     os.chdir(repo)
-    revs = subprocess.check_output(['git', 'rev-list', 'master']).split()
+    revs = subprocess.check_output(['git', 'rev-list', 'master', 
+        '--since="{}"'.format(args.since), 
+        '--until="{}"'.format(args.until)
+    ]).split()
     re_auth = re.compile('^(.+)#(.*)')
     re_edits = re.compile('^(\d+)\s+(\d+)') # Binary files start with - -.
     N = len(revs)
