@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2018, Jesper Öqvist
+# Copyright (c) 2018-2022, Jesper Öqvist
 import argparse
 import sys, os, subprocess
 import re
@@ -15,16 +15,16 @@ class Author:
     def edits(s):
         return s.added + s.deleted
 
-    def report(s, by, totlines, sep, suffix=''):
+    def report(s, by, totlines):
         metrics = list(map(lambda x: format(x, ','),
                 [s.commits, s.added, s.deleted, s.edits()]))
         metrics += ["%.1f" % ((100.0 * s.edits())/totlines)]
         if by == 'name':
-            return sep.join([s.name] + metrics) + suffix
+            return [s.name] + metrics
         elif by == 'email':
-            return sep.join([s.email] + metrics) + suffix
+            return [s.email] + metrics
         else:
-            return sep.join(["%s <%s>" % (s.name, s.email)] + metrics) + suffix
+            return ["%s <%s>" % (s.name, s.email)] + metrics
 
     def __str__(s):
         return '%s <%s>' % (s.name, s.email)
@@ -105,9 +105,20 @@ def main():
     if args.limit != None:
         authors = authors[:int(args.limit)]
     if args.output == 'plaintext':
-        print('Author\tCommits\tInserted\tRemoved\tTotal\tPercent')
+        rows = [['Author','Commits','Inserted','Removed','Total','Percent']]
+        lens = [ len(r) for r in rows[0] ]
         for auth in authors:
-            print(auth.report(args.by, totlines, sep='\t'))
+            row = auth.report(args.by, totlines)
+            for i in range(len(lens)):
+                lens[i] = max(lens[i], len(row[i]))
+            rows += [ row ]
+        offs = 0
+        for row in rows:
+            items = []
+            for i in range(len(lens)-1):
+                items += f'{row[i]:<{lens[i]+2}}'
+            items += row[-1]
+            print(''.join(items))
     elif args.output.startswith('tex'):
         if args.output == 'tex':
             print('''\\documentclass[10pt,border=10pt]{standalone}
@@ -119,14 +130,14 @@ def main():
 \\emph{Author} & \\emph{Commits} & \\emph{Inserted} & \\emph{Removed} & $\\Sigma\,\\downarrow$ & \\% \\\\
 \\midrule''')
         for auth in authors:
-            print(auth.report(args.by, totlines, sep=' & ', suffix = ' \\\\'))
+            print((' & '.join(auth.report(args.by, totlines)) + ' \\\\'))
         print('''\\bottomrule
 \\end{tabular}''')
         if args.output == 'tex':
             print('\\end{document}')
     elif args.output == 'csv':
         for auth in authors:
-            print(auth.report(args.by, totlines, sep=','))
+            print(','.join(auth.report(args.by, totlines)))
     elif args.output == 'alias':
         for auth in authors:
             print('%s = %s' % (auth.email, auth.name))
