@@ -55,6 +55,10 @@ def main():
     parser.add_argument('--limit',
             help='Maximum number of output rows')
     parser.add_argument('--alias', help='File mapping emails to author names')
+    parser.add_argument('--sort',
+            choices=['edits', 'commits'],
+            default='edits',
+            help='Column to sort on')
     args = parser.parse_args()
     repo = args.repository
     if not os.path.isdir(repo):
@@ -101,7 +105,8 @@ def main():
                 auth.deleted += int(edits.group(2))
     sys.stderr.write('\r%s\r' % (' ' * 25))
     totlines = sum(map(lambda x: x.edits(), authors.values()))
-    authors = sorted(authors.values(), key=lambda x: x.edits(), reverse=True)
+    sortkey = lambda a: a.edits() if args.sort == 'edits' else a.commits
+    authors = sorted(authors.values(), key=sortkey, reverse=True)
     if args.limit != None:
         authors = authors[:int(args.limit)]
     if args.output == 'plaintext':
