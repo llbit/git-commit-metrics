@@ -5,9 +5,11 @@ import sys, os, subprocess
 import re
 import datetime
 class Author:
-    def __init__(self, name, email):
+    def __init__(self, name, email, first_commit_date):
         self.name = name
         self.email = email
+        self.first_commit_date = first_commit_date
+        self.last_commit_date = first_commit_date 
         self.commits = 0
         self.added = 0
         self.deleted = 0
@@ -19,18 +21,17 @@ class Author:
         metrics = list(map(lambda x: format(x, ','),
                 [s.commits, s.added, s.deleted, s.edits()]))
         metrics += ["%.1f" % ((100.0 * s.edits())/totlines)]
-        print("name: ",s.name, "email: ",s.email, branch)
         if by == 'name':
-            return [s.name, branch] + metrics
+            return [s.name, branch] + metrics + [s.first_commit_date, s.last_commit_date]
         elif by == 'email':
-            return [s.email, branch] + metrics
+            return [s.email, branch] + metrics + [s.first_commit_date, s.last_commit_date]
         else:
-            return ["%s <%s>" % (s.name, s.email), branch] + metrics
+            return ["%s <%s>" % (s.name, s.email), branch] + metrics + [s.first_commit_date, s.last_commit_date]
 
     def __str__(s):
         return '%s <%s>' % (s.name, s.email)
 
-def index(authors, name, email, by):
+def index(authors, name, email, date, by):
     if by == 'name':
         key = name
     elif by == 'email':
@@ -38,7 +39,7 @@ def index(authors, name, email, by):
     else:
         key = (name, email)
     if  key not in authors:
-        authors[key] = Author(name, email)
+        authors[key] = Author(name, email, date)
     return authors[key]
 
 def main():
@@ -137,7 +138,8 @@ def main():
             out, err = subprocess.Popen(['git', 'show', rev, '--numstat', '--format=%an#%ae#%ad', '--date=short'], stdout=subprocess.PIPE).communicate()
             out = out.decode(encoding='UTF-8')
             lines = out.splitlines()
-            auth_line = lines[0]
+            auth_line = lines[0].split("#")
+            auth_line = auth_line[0] + "#" + auth_line[1]
             date = lines[0].split("#")[-1]
             
             if args.date:
@@ -153,7 +155,13 @@ def main():
                 raise Exception('Malformed author line? [%s]' % auth_line)
             
             name,email = auth.group(1), auth.group(2)
-            auth = index(authors, alias.get(email, name), email, args.by)
+            auth = index(authors, alias.get(email, name), email, date, args.by)
+
+            if datetime.datetime.strptime(date, '%Y-%m-%d') < datetime.datetime.strptime(auth.first_commit_date, '%Y-%m-%d'):
+                auth.first_commit_date = date
+            if datetime.datetime.strptime(date, '%Y-%m-%d') > datetime.datetime.strptime(auth.last_commit_date, '%Y-%m-%d'):
+                auth.last_commit_date = date
+            
             auth.commits += 1
             for ln in lines[1:]:
                 edits = re_edits.match(ln)
@@ -168,7 +176,7 @@ def main():
         if args.limit != None:
             authors = authors[:int(args.limit)]
         if args.output == 'plaintext':
-            rows = [['Author','Branch','Commits','Inserted','Removed','Total','Percent']]
+            rows = [['Author','Branch','Commits','Inserted','Removed','Total','Percent', "First commit", "Last commit"]]
             lens = [ len(r) for r in rows[0] ]
             for auth in authors:
                 row = auth.report(args.by, totlines, branch)
