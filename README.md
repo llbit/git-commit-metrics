@@ -9,7 +9,7 @@ estimate line counts (good luck with that, lol).
 
 ## Basic Usage
 
-1. `python countlines.py <path-to-repo> --by=name --output=tex > stats.tex`
+1. `python3 countlines.py <path-to-repo> --by=name --output=tex > stats.tex`
 2. `xelatex stats.tex`
 
 Note: `<path-to-repo>` can be a directory on the filesystem with a checked-out repository,
@@ -23,9 +23,17 @@ one or more authors have been inconsistent in their use of the author field in
 their commits.
 
 1. Generate an initial alias file:
-    `python countlines.py <path-to-repo> --output=alias > aliasfile`
+    `countlines.py <path-to-repo> --output=alias > aliasfile`
 2. Edit `aliasfile`
-3. `python countlines.py <path-to-repo> --alias=aliasfile --by=name --output=csv > stats.csv`
+3. `countlines.py <path-to-repo> --alias=aliasfile --by=name --output=csv > stats.csv`
+
+## Selecting Output Columns
+
+The columns included in the output can be customized, for example:
+`countlines.py --columns=author,edits,first_date,last_date <repo>`
+
+The full list of available columns is shown in the help output.
+The `author` column is controlled by the `--by` option.
 
 ## Example Output
 
