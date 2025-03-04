@@ -190,6 +190,7 @@ def output_data(args, authors):
         if args.output == 'tex':
             print('\\end{document}')
     elif args.output == 'csv':
+        print(','.join(keys))
         for auth in authors:
             print(','.join([str(x) for x in auth.report(keys, totlines)]))
     elif args.output == 'alias':
