@@ -116,8 +116,6 @@ def gather_data(args, repo, alias):
     sys.stderr.write('\r%s\r' % (' ' * 25))
     return authors
 
-DEFAULT_COLS=['author', 'commits', 'added', 'deleted', 'edits', 'percent']
-
 COLNAMES={
 'name': 'Author',
 'email': 'Author',
@@ -229,12 +227,19 @@ def main():
             help='Limit to the MAX_COUNT most recent commits.')
     cols = sorted(['author'] + list(COLNAMES.keys()))
     parser.add_argument('--columns',
-            default=','.join(DEFAULT_COLS),
+            default=None,
             help=f'Comma-separated list of column to display. Column names are: {', '.join(cols)}')
 
     args = parser.parse_args()
 
-    args.columns = args.columns.split(',')
+    if args.columns is None:
+        if args.output == 'csv':
+            args.columns = ['author', 'commits', 'added', 'deleted', 'edits', 'percent']
+        else:
+            args.columns = ['author', 'commits', 'added', 'deleted', 'edits', 'first_date', 'last_date']
+    else:
+        args.columns = args.columns.split(',')
+
     for col in args.columns:
         if not col in cols:
             raise Exception(f'ERROR: unknown column name "{col}"')
