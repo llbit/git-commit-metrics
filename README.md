@@ -49,3 +49,11 @@ This table was generated with the following commands:
     xelatex example.tex
     convert -background White -layers flatten -density 120 -antialias example.pdf example-table.png
 
+## Render Plots
+
+If output is written in CSV format, the `plot.py` script can be used to render pie charts with plotly:
+
+    ./countlines.py --by name --alias authors.txt --output csv --branch master <REPO> > data.csv
+    python3 plot.py data.csv
+
+![example pie charts](https://raw.githubusercontent.com/llbit/git-commit-metrics/master/example-plotly.png)
