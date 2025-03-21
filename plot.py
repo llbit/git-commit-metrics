@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 # Display commit statistics as pie charts with plotly.
 
 import sys
