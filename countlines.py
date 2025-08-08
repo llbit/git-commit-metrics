@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 # Copyright (c) 2018-2025, Jesper Öqvist
 import argparse
-import sys, os, subprocess
+import sys, os, subprocess, threading
 import re
+from concurrent.futures import ThreadPoolExecutor
 
 from datetime import datetime
 
 strptime = datetime.strptime
+re_auth = re.compile(r'^(.+)#(.*)')
+re_edits = re.compile(r'^(\d+)\s+(\d+)') # Binary files start with - -.
 
 class Author:
     def __init__(self, name, email, first_date):
@@ -49,16 +52,18 @@ class Author:
     def __str__(s):
         return '%s <%s>' % (s.name, s.email)
 
-def index(authors, name, email, date, by):
+# Lookup author in author dict.
+def index(authors, mutex, name, email, date, by):
     if by == 'name':
         key = name
     elif by == 'email':
         key = email
     else:
         key = (name, email)
-    if  key not in authors:
-        authors[key] = Author(name, email, date)
-    return authors[key]
+    with mutex:
+        if  key not in authors:
+            authors[key] = Author(name, email, date)
+        return authors[key]
 
 def gather_data(args, repo, alias):
     os.chdir(repo)
@@ -68,12 +73,11 @@ def gather_data(args, repo, alias):
     allbranches = [branch.replace("*", "").strip() for branch in out.decode(encoding='UTF-8').splitlines()]
 
     if args.branch not in allbranches:
-        raise Exception('Branch %s does not exist' % args.branch)
+        raise Exception(f'Branch {args.branch} does not exist')
 
-    authors = {}
+    authors = {} # Global author dict
+    auth_mutex = threading.Lock() # Mutex for the author dict.
 
-    re_auth = re.compile(r'^(.+)#(.*)')
-    re_edits = re.compile(r'^(\d+)\s+(\d+)') # Binary files start with - -.
     cmd = ['git', 'rev-list']
     if args.since:
         cmd += [f'--since-as-filter={args.since}']
@@ -85,36 +89,53 @@ def gather_data(args, repo, alias):
     revs = subprocess.check_output(cmd).split()
     N = len(revs)
     n = 0
-    for rev in revs:
-        n += 1
-        sys.stderr.write('\rcommit: %d / %d%s' % (n, N, ' '*15))
-        out, err = subprocess.Popen(['git', 'show', rev, '--numstat', '--format=%an#%ae#%ad', '--date=short'], stdout=subprocess.PIPE).communicate()
+    with ThreadPoolExecutor(max_workers=max(1, os.cpu_count() - 2)) as exe:
+        futures = []
+        for sha1 in revs:
+            futures += [exe.submit(get_commit_stats, sha1, authors, alias, auth_mutex, args.by)]
+        try:
+            for f in futures:
+                n += 1
+                sys.stderr.write('\rcommit: %d / %d%s' % (n, N, ' '*15))
+                auth, date, added, deleted = f.result()
+                auth.commits += 1
+                auth.added += added
+                auth.deleted += deleted
+                if strptime(date, '%Y-%m-%d') < strptime(auth.first_date, '%Y-%m-%d'):
+                    auth.first_date = date
+                if strptime(date, '%Y-%m-%d') > strptime(auth.last_date, '%Y-%m-%d'):
+                    auth.last_date = date
+        except KeyboardInterrupt as e:
+            exe.shutdown(wait=True, cancel_futures=True)
+            raise KeyboardInterrupt()
+    sys.stderr.write('\r%s\r' % (' ' * 25))
+    return authors
+
+# Get the statistics for a single commit
+def get_commit_stats(sha1: str, authors: dict, alias: dict, mutex, by: str):
+    with subprocess.Popen(['git', 'show', sha1, '--numstat', '--format=%an#%ae#%ad', '--date=short'], stdout=subprocess.PIPE) as proc:
+        out, err = proc.communicate()
         out = out.decode(encoding='UTF-8')
         lines = out.splitlines()
         auth_line = lines[0].split("#")
         auth_line = auth_line[0] + "#" + auth_line[1]
         date = lines[0].split("#")[-1]
 
-        auth = re_auth.match(auth_line)
-        if not auth:
+        auth_match = re_auth.match(auth_line)
+        if not auth_match:
             raise Exception('Malformed author line? [%s]' % auth_line)
 
-        name,email = auth.group(1), auth.group(2)
-        auth = index(authors, alias.get(email, name), email, date, args.by)
+        name,email = auth_match.group(1), auth_match.group(2)
+        auth = index(authors, mutex, alias.get(email, name), email, date, by)
 
-        if strptime(date, '%Y-%m-%d') < strptime(auth.first_date, '%Y-%m-%d'):
-            auth.first_date = date
-        if strptime(date, '%Y-%m-%d') > strptime(auth.last_date, '%Y-%m-%d'):
-            auth.last_date = date
-
-        auth.commits += 1
+        added = 0
+        deleted = 0
         for ln in lines[1:]:
             edits = re_edits.match(ln)
             if edits:
-                auth.added += int(edits.group(1))
-                auth.deleted += int(edits.group(2))
-    sys.stderr.write('\r%s\r' % (' ' * 25))
-    return authors
+                added += int(edits.group(1))
+                deleted += int(edits.group(2))
+        return (auth, date, added, deleted)
 
 COLNAMES={
 'name': 'Author',
@@ -262,8 +283,12 @@ def main():
                 email, name = ln.split('=')
                 alias[email.strip()] = name.strip()
 
-    data = gather_data(args, repo, alias)
-    output_data(args, data)
+    try:
+        data = gather_data(args, repo, alias)
+        output_data(args, data)
+    except KeyboardInterrupt as e:
+        print("\nKeyboard interrupt. Shutting down...")
+        pass
 
 if __name__ == '__main__':
     main()
