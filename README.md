@@ -4,8 +4,7 @@ A tool for counting cumulative changes per author for Git repositories.
 Can output text, CSV, or LaTeX.
 
 This program sums the output from `git show --numstat` to get actual number of
-inserted/removed lines, unlike other line counting tools which use `--stat` to
-estimate line counts (good luck with that, lol).
+inserted/removed lines (this is more accurate than using `git show --stat`).
 
 ## Basic Usage
 
